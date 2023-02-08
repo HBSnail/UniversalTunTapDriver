@@ -382,34 +382,20 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using static UniversalTunTapDriver.TunTapHelper;
 using static UniversalTunTapDriver.TunTapHelper_windows;
-using static UniversalTunTapDriver.TunTapHelper_linux;
 using static UniversalTunTapDriver.WinAPI;
+
 namespace UniversalTunTapDriver
 {
     public class TunTapDevice
     {
-        private int DeviceHandle;
-        public string Guid;
-        public string Name;
+        private int DeviceHandle = -1;
+        public string DeviceIdentification;
         public FileStream TunTapDeviceIOStream;
-        public TunTapDevice(TunTapDeviceInfo info)
-        {
-            this.Guid = info.Guid;
-            this.Name = info.Name;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                this.DeviceHandle = (int)GetDevicePtrByGuid(this.Guid);
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                //On linux platform GUID==Name
-                this.DeviceHandle = GetDevicePtrByName(this.Name);
-            }
-            else
-            {
-                throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
-            }
 
+        public TunTapDevice(string DeviceIdentification)
+        {
+            this.DeviceIdentification = DeviceIdentification;
+            this.DeviceHandle = GetDevicePrt(this.DeviceIdentification);
         }
 
         public bool SetConnectionState(ConnectionStatus iState)
@@ -432,43 +418,52 @@ namespace UniversalTunTapDriver
                 //return false;
                 throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
             }
-            return false;
         }
-        public bool CreateDeviceIOStream(int buffersize)
-        {
-            if (TunTapDeviceIOStream != null)
-                return false;
-            SafeFileHandle HANDLE = new SafeFileHandle((IntPtr)DeviceHandle, true);
-            if (HANDLE.IsInvalid)
-                return false;
-            TunTapDeviceIOStream = new FileStream(HANDLE, FileAccess.ReadWrite, buffersize, true);
-            return true;
-        }
-        public void Close()
+
+        public bool CreateDeviceIOStream(int bufferSize)
         {
             if (TunTapDeviceIOStream != null)
             {
+                return false;
+            }
+            SafeFileHandle Handle = new SafeFileHandle((IntPtr)DeviceHandle, true);
+            if (Handle.IsInvalid)
+            {
+                return false;
+            }
+            TunTapDeviceIOStream = new FileStream(Handle, FileAccess.ReadWrite, bufferSize, true);
+            return true;
+        }
+
+        public void Close()
+        {
+            SetConnectionState(ConnectionStatus.Disconnected);
+            if (TunTapDeviceIOStream != null)
+            {
+                TunTapDeviceIOStream.Flush();
                 TunTapDeviceIOStream.Close();
                 TunTapDeviceIOStream.Dispose();
                 TunTapDeviceIOStream = null;
             }
+            DeviceHandle = -1;
+            DeviceIdentification = null;
         }
 
-        public bool ConfigTun(IPAddress LocalIPAddress, IPAddress remIPAddress, IPAddress Mask)
+        public bool ConfigTun(IPAddress localIPAddress, IPAddress remIPAddress, IPAddress mask)
         {
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 uint Length = 0;
                 IntPtr cconfig = Marshal.AllocHGlobal(12);
-                byte[] IP = BitConverter.GetBytes(System.Convert.ToUInt32(LocalIPAddress.Address));
-                for (var i = 0; i <= IP.Length - 1; i++)
+                byte[] IP = BitConverter.GetBytes(System.Convert.ToUInt32(localIPAddress.Address));
+                for (var i = 0; i < IP.Length ; i++)
                     Marshal.WriteByte(cconfig, i, IP[i]);
                 IP = BitConverter.GetBytes(System.Convert.ToUInt32(remIPAddress.Address));
-                for (var i = 0; i <= IP.Length - 1; i++)
+                for (var i = 0; i < IP.Length; i++)
                     Marshal.WriteByte(cconfig, i + 4, IP[i]);
-                IP = BitConverter.GetBytes(System.Convert.ToUInt32(Mask.Address));
-                for (var i = 0; i <= IP.Length - 1; i++)
+                IP = BitConverter.GetBytes(System.Convert.ToUInt32(mask.Address));
+                for (var i = 0; i < IP.Length ; i++)
                     Marshal.WriteByte(cconfig, i + 8, IP[i]);
                 return DeviceIoControl((IntPtr)DeviceHandle, CTL_CODE(FILE_DEVICE_UNKNOWN, TAP_WIN_IOCTL_CONFIG_TUN, METHOD_BUFFERED, FILE_ANY_ACCESS), cconfig, 12, cconfig, 12, ref Length, IntPtr.Zero);
             }
@@ -483,8 +478,6 @@ namespace UniversalTunTapDriver
                 //return false;
                 throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
             }
-            return false;
-
         }
         public bool ConfigPoint2Point(IPAddress LocalIPAddress, IPAddress RemoteIPAddress)
         {
@@ -493,10 +486,10 @@ namespace UniversalTunTapDriver
                 uint Length = 0;
                 IntPtr cconfig = Marshal.AllocHGlobal(8);
                 byte[] IP = BitConverter.GetBytes(System.Convert.ToUInt32(LocalIPAddress.Address));
-                for (var i = 0; i <= IP.Length - 1; i++)
+                for (var i = 0; i < IP.Length; i++)
                     Marshal.WriteByte(cconfig, i, IP[i]);
                 IP = BitConverter.GetBytes(System.Convert.ToUInt32(RemoteIPAddress.Address));
-                for (var i = 0; i <= IP.Length - 1; i++)
+                for (var i = 0; i < IP.Length; i++)
                     Marshal.WriteByte(cconfig, i + 4, IP[i]);
                 return DeviceIoControl((IntPtr)DeviceHandle, CTL_CODE(FILE_DEVICE_UNKNOWN, TAP_WIN_IOCTL_CONFIG_POINT_TO_POINT, METHOD_BUFFERED, FILE_ANY_ACCESS), cconfig, 8, cconfig, 8, ref Length, IntPtr.Zero);
             }
@@ -511,7 +504,6 @@ namespace UniversalTunTapDriver
                 //return false;
                 throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
             }
-            return false;
         }
 
         public byte[] GetMAC()
@@ -533,14 +525,13 @@ namespace UniversalTunTapDriver
             {
                 //NotSupport ON LINUX
 
-                return new byte[] { 0, 0, 0, 0, 0, 0 };
+                return new byte[] { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
             }
             else
             {
                 //return false;
                 throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
             }
-            return null;
         }
 
         public string GetVersion()
@@ -561,14 +552,13 @@ namespace UniversalTunTapDriver
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 //NotSupport ON LINUX
-                return "UNIVERSAL TUN/TAP DRIVER";
+                return "UNDEFINED";
             }
             else
             {
                 //return false;
                 throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
             }
-            return "UNDEFINED";
         }
 
         public int GetMTU()
@@ -584,14 +574,13 @@ namespace UniversalTunTapDriver
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 //NotSupport ON LINUX
-                return int.MaxValue;
+                return -1;
             }
             else
             {
                 //return false;
                 throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
             }
-            return -1;
         }
 
     }

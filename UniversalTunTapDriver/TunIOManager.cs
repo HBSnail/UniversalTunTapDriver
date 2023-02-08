@@ -381,6 +381,7 @@ using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using static UniversalTunTapDriver.TunTapHelper;
 
 namespace UniversalTunTapDriver
@@ -390,38 +391,34 @@ namespace UniversalTunTapDriver
         private TunTapDevice TunDevice;
         public List<object> NotifyList;
 
-        bool isStart = false;
-        public byte[] TunTapBuffer = new byte[1500];
+        bool IsStart = false;
+        public byte[] TunBuffer = new byte[1500];
 
         public FileStream DeviceIOStream = null;
-        public string DeviceName { get; set; }
         public int DeviceMTU { get; set; }
-        public string DeviceGuid { get; set; }
+        public string DeviceIdentification { get; set; }
         public byte[] DeviceMAC { get; set; }
         public string DeviceVersion { get; set; }
 
-        public TunIOManager(string deviceid)
+        public TunIOManager(string DeviceIdentification)
         {
-            TunTapDeviceInfo ttdi;
-            ttdi.Guid = deviceid;
-            ttdi.Name = GetAdapterNameByGuid(deviceid);
-            TunDevice = new TunTapDevice(ttdi);
+            this.DeviceIdentification = DeviceIdentification;
+            TunDevice = new TunTapDevice(DeviceIdentification);
 
-            DeviceName = ttdi.Name;
-            DeviceGuid = ttdi.Guid;
             DeviceMAC = TunDevice.GetMAC();
             DeviceMTU = TunDevice.GetMTU();
             DeviceVersion = TunDevice.GetVersion();
             NotifyList = new List<object>();
         }
+
         public void Start(IPAddress local,IPAddress rem,IPAddress mask)
         {
-            isStart = true;
+            IsStart = true;
             TunDevice.ConfigTun(local,rem,mask);
             TunDevice.SetConnectionState(ConnectionStatus.Connected);
-            TunDevice.CreateDeviceIOStream(1500);
+            TunDevice.CreateDeviceIOStream(TunBuffer.Length);
             DeviceIOStream = TunDevice.TunTapDeviceIOStream;
-            DeviceIOStream.BeginRead(TunTapBuffer, 0, TunTapBuffer.Length, new AsyncCallback(TunTapRecv), DeviceIOStream);
+            MonitorTunStream();
         }
 
         public void Send(byte[] dat,int offset,int length)
@@ -430,52 +427,48 @@ namespace UniversalTunTapDriver
             DeviceIOStream.Flush();
         }
 
-        private void TunTapRecv(IAsyncResult ar)
+        private async void MonitorTunStream()
         {
-            FileStream dStream = ar.AsyncState as FileStream;
+            Retry:
             try
             {
-                int leng = dStream.EndRead(ar);
-                byte[] data = new byte[leng];
-                Array.Copy(TunTapBuffer, data, leng);
-                if (leng > 0) {
-
-                    for (int i = 0; i < NotifyList.Count; i++)
+                while (IsStart)
+                {
+                    int leng = await DeviceIOStream.ReadAsync(TunBuffer, 0, TunBuffer.Length);
+                    if (leng > 0)
                     {
-                        try
+                        byte[] data = new byte[leng];
+                        Array.Copy(TunBuffer, data, leng);
+                        for (int i = 0; i < NotifyList.Count; i++)
                         {
-                            Type T = NotifyList[i].GetType();
-                            T.InvokeMember("OnTunReceive", BindingFlags.Default | BindingFlags.InvokeMethod, null, NotifyList[i], new object[] { (object)data });
+                            try
+                            {
+                                Type T = NotifyList[i].GetType();
+                                T.InvokeMember("OnTunReceive", BindingFlags.Default | BindingFlags.InvokeMethod, null, NotifyList[i], new object[] { (object)data });
+                            }
+                            catch (Exception) { }
                         }
-                        catch (Exception) { }
+
                     }
-                
+
                 }
-                
             }
             catch (Exception)
             {
-               
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    Thread.Sleep(100);
-            }
-
-        L1:;
-            try
-            {
-                if (isStart)
-                    DeviceIOStream.BeginRead(TunTapBuffer, 0, TunTapBuffer.Length, new AsyncCallback(TunTapRecv), DeviceIOStream);
-            }
-            catch (Exception ex)
-            {
                 Thread.Sleep(100);
-                goto L1;
-            }
+                goto Retry;
+            }         
         }
 
         public void Close()
         {
-            TunDevice.SetConnectionState(ConnectionStatus.Disconnected);
+            NotifyList.Clear();
+            IsStart = false;
+            TunDevice.Close();
+            DeviceMTU = -1;
+            DeviceIdentification = null;
+            DeviceVersion = null;
+            Array.Clear(DeviceMAC, 0, DeviceMAC.Length);
             DeviceIOStream = null;
         }
     }

@@ -376,7 +376,11 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
  */
 
 using Microsoft.Win32;
+using System;
 using System.Runtime.InteropServices;
+using static UniversalTunTapDriver.TunTapHelper_windows;
+using static UniversalTunTapDriver.TunTapHelper_linux;
+using System.Collections.Generic;
 
 namespace UniversalTunTapDriver
 {
@@ -386,12 +390,13 @@ namespace UniversalTunTapDriver
         {
             public string Name;
             public string Guid;
-            public TunTapDeviceInfo(string n, string g)
+            public TunTapDeviceInfo(string name, string guid)
             {
-                Name = n;
-                Guid = g;
+                Name = name;
+                Guid = guid;
             }
         }
+
         public enum ConnectionStatus
         {
             Connected = 1,
@@ -409,6 +414,65 @@ namespace UniversalTunTapDriver
                 return iGuid;
             }
         }
+
+
+        public static int GetDevicePrt(string DeviceIdentification)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return (int)GetDevicePrt_windows(DeviceIdentification);
+
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return GetDevicePtr_linux(DeviceIdentification);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
+            }
+        }
+
+        public static List<TunTapDeviceInfo> GetTapGuidList(string iComponentId)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                RegistryKey AdaptersInRegistry = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002BE10318}", false);
+                string[] KeyNames = AdaptersInRegistry.GetSubKeyNames();
+                List<TunTapDeviceInfo> TapGuidList = new List<TunTapDeviceInfo>();
+                for (var i = 0; i <= KeyNames.Length - 1; i++)
+                {
+                    try
+                    {
+                        if (KeyNames[i].Trim().ToLower() == "properties" || KeyNames[i].Trim().ToLower() == "configuration")
+                            continue;
+                        RegistryKey SingleAdapterInRegistry = AdaptersInRegistry.OpenSubKey(KeyNames[i]);
+                        string CID = SingleAdapterInRegistry.GetValue("ComponentId").ToString();
+                        if (CID != null && CID.ToLower().Trim() == iComponentId)
+                        {
+                            string iGuid = SingleAdapterInRegistry.GetValue("NetCfgInstanceId").ToString();
+                            TapGuidList.Add(new TunTapDeviceInfo(GetAdapterNameByGuid(iGuid), iGuid));
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                return TapGuidList;
+
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return null;
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("This program can only run on windows OR linux platform.");
+            }
+          
+        }
+
+
     }
 
 }

@@ -398,41 +398,12 @@ namespace UniversalTunTapDriver
         public const int TAP_WIN_IOCTL_CONFIG_TUN = 10;
         public const string UsermodeDeviceSpace = @"\\.\\Global\\";
 
-        public static List<TunTapDeviceInfo> GetTapGuidList(string iComponentId)
+       
+        public static IntPtr GetDevicePrt_windows(string DeviceIdentification)
         {
-            RegistryKey AdaptersInRegistry = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002BE10318}", false);
-            string[] KeyNames = AdaptersInRegistry.GetSubKeyNames();
-            List<TunTapDeviceInfo> TapGuidList = new List<TunTapDeviceInfo>();
-            for (var i = 0; i <= KeyNames.Length - 1; i++)
-            {
-                try
-                {
-                    if (KeyNames[i].Trim().ToLower() == "properties" || KeyNames[i].Trim().ToLower() == "configuration")
-                        continue;
-                    RegistryKey SingleAdapterInRegistry = AdaptersInRegistry.OpenSubKey(KeyNames[i]);
-                    string CID = SingleAdapterInRegistry.GetValue("ComponentId").ToString();
-                    if (CID != null && CID.ToLower().Trim() == iComponentId)
-                    {
-                        string iGuid = SingleAdapterInRegistry.GetValue("NetCfgInstanceId").ToString();
-                        TapGuidList.Add(new TunTapDeviceInfo(GetAdapterNameByGuid(iGuid), iGuid));
-                    }
-                }
-                catch (Exception ex)
-                {
-                }
-            }
-            return TapGuidList;
+            return WinAPI.CreateFile(UsermodeDeviceSpace + DeviceIdentification + ".tap", FileAccess.ReadWrite, FileShare.ReadWrite, 0, FileMode.Open, WinAPI.FILE_ATTRIBUTE_SYSTEM | WinAPI.FILE_FLAG_OVERLAPPED, IntPtr.Zero);
         }
 
-	public static string GetAdapterNameByGuid(string iGuid)
-        {
-            return Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Network\{4D36E972-E325-11CE-BFC1-08002BE10318}" + @"\" + iGuid + @"\Connection", false).GetValue("Name").ToString();
-        }
-
-        public static IntPtr GetDevicePtrByGuid(string Guid)
-        {
-            return WinAPI.CreateFile(UsermodeDeviceSpace + Guid + ".tap", FileAccess.ReadWrite, FileShare.ReadWrite, 0, FileMode.Open, WinAPI.FILE_ATTRIBUTE_SYSTEM | WinAPI.FILE_FLAG_OVERLAPPED, IntPtr.Zero);
-        }
         public static uint CTL_CODE(uint iDeviceType, uint iFunction, uint iMethod, uint iAccess)
         {
             return ((iDeviceType << 16) | (iAccess << 14) | (iFunction << 2) | iMethod);

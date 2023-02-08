@@ -383,9 +383,8 @@ namespace UniversalTunTapDriver
     {
         const UInt32 TUNSETIFF = 1074025674;
 
-        public static int GetDevicePtrByName(string Name)
+        public static int GetDevicePtr_linux(string Name)
         {
-
             int TUNinterface = LinuxAPI.Open("/dev/net/tun", LinuxAPI.O_NONBLOCK | LinuxAPI.O_RDWR | LinuxAPI.O_ASYNC);
             if (TUNinterface >= 0)
             {
