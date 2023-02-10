@@ -8,6 +8,13 @@ UniversalTunTapDriver is a lightweight library which allows you to  control TUN/
 
 ----------
 ### **UniversalTunTapDriver release list**
+#### ***UniversalTunTapDriver V1.2***
+released in *Feb 10, 2023*
+> * Add bad handle detection
+> * Fix bug: asynchronous I/O can not been used on linux 
+> * Simplify device initialization
+> * More detailed readme doc
+
 #### ***UniversalTunTapDriver V1.1***
 released in *Aug 21, 2021*
 > * Add TunIOManager to organize the I/O operation of a TUN device
@@ -38,8 +45,8 @@ released in *Aug 22, 2020*
 ### **TODO LIST**
 
 - [x] Fix some bugs when running on linux platform
-- [ ] Finish the **UNFINISHED** code
-- [ ] Develop and test the control abality of TAP devices on windows and linux platform.
+- [x] Finish the **UNFINISHED** code
+- [x] Develop and test the control abality of TAP devices on windows and linux platform.
 - [x] Open source under MPL2.0 License
 - [x] Support to control TUN devices on linux platform
 - [x] Support to control TUN devices on windows platform
@@ -73,8 +80,9 @@ This process should be done by yourself.
 ##### **4.0 Get all of the TUN/TAP devices installed on your computer**
 ```csharp
  // The following code only works on windows
- // On linux please use "ifconfig" in the terminal for enumerating all network interfaces
- //On windows you MUST install 'TAP-Windows Adapter V9' before execute the code
+ // On linux please use "ip" and "ifconfig" in the terminal for createing and enumerating all network interfaces
+ // ip tuntap add dev tun0 mode tun
+ // On windows you MUST install 'TAP-Windows Adapter V9' before execute the code
  List<TunTapDeviceInfo> DeviceList  = GetTapGuidList("tap0901");
  
  //TunTapDeviceInfo is a kind of structure defined as follow
@@ -93,10 +101,9 @@ This process should be done by yourself.
 ```
 ##### **4.1 Create&initial the deivce**
 ```csharp
- // On linux please set the name and guid to the same value in the structure TunTapDeviceInfo. like "tun0" "tap0" ect.
-    TunTapDeviceInfo dInfo; 
-    dInfo.Name = "NAME";
-    dInfo.Guid = "GUID";
+ // On linux please set the dInfo to tun name. like "tun0" "tap0" ect.
+ // On windows please set the dInfo to tun guid. like "{xxxxx-xxxxx-xxxx}".
+    String dInfo; 
     TunTapDevice Device = New TunTapDevice(dInfo);
  // After this you will successfully create and initial a TUN/TAP device except the name or guid does not exist or the divice was occupied by other process. 
 ```
@@ -104,6 +111,8 @@ This process should be done by yourself.
 ```csharp
  // The following code only works on windows
  // On linux please use "ifconfig" or "ip" in the terminal.
+ // ifconfig tun0 x.x.x.x netmask x.x.x.x up
+ // 
 
  Device.ConfigTun(IPAddress.Parse("LOC_IP"), IPAddress.Parse("REM_IP"), IPAddress.Parse("NET_MASK"));
  Device.SetConnectionState(ConnectionStatus.Connected);
@@ -135,7 +144,7 @@ Thanks!
 
 
 Auther: [HBSnail][1]     
-Aug 21, 2021
+Feb 10, 2023
 
 [1]: https://github.com/HBSnail
 [2]: https://github.com/OpenVPN/openvpn

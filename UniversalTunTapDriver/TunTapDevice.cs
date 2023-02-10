@@ -400,6 +400,10 @@ namespace UniversalTunTapDriver
 
         public bool SetConnectionState(ConnectionStatus iState)
         {
+            if (DeviceHandle == -1 || DeviceHandle == 0)
+            {
+                throw new Exception("DeviceHandle=" + DeviceHandle.ToString());
+            }
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 uint Length = 0;
@@ -424,20 +428,28 @@ namespace UniversalTunTapDriver
         {
             if (TunTapDeviceIOStream != null)
             {
-                return false;
+                return true;
             }
             SafeFileHandle Handle = new SafeFileHandle((IntPtr)DeviceHandle, true);
             if (Handle.IsInvalid)
             {
                 return false;
             }
-            TunTapDeviceIOStream = new FileStream(Handle, FileAccess.ReadWrite, bufferSize, true);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                TunTapDeviceIOStream = new FileStream(Handle, FileAccess.ReadWrite, bufferSize, true);
+            }
+            else
+            {
+                // since we have opeded the device in async mode, we must not set the stream as async in linux system
+                TunTapDeviceIOStream = new FileStream(Handle, FileAccess.ReadWrite, bufferSize, false);
+            }
             return true;
         }
 
-        public void Close()
+        public void Dispose()
         {
-            SetConnectionState(ConnectionStatus.Disconnected);
+            Close();
             if (TunTapDeviceIOStream != null)
             {
                 TunTapDeviceIOStream.Flush();
@@ -449,8 +461,17 @@ namespace UniversalTunTapDriver
             DeviceIdentification = null;
         }
 
+        public void Close()
+        {
+            SetConnectionState(ConnectionStatus.Disconnected);
+        }
+
         public bool ConfigTun(IPAddress localIPAddress, IPAddress remIPAddress, IPAddress mask)
         {
+            if(DeviceHandle== -1 || DeviceHandle == 0)
+            {
+                throw new Exception("DeviceHandle=" + DeviceHandle.ToString());
+            }
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -481,6 +502,10 @@ namespace UniversalTunTapDriver
         }
         public bool ConfigPoint2Point(IPAddress LocalIPAddress, IPAddress RemoteIPAddress)
         {
+            if (DeviceHandle == -1 || DeviceHandle == 0)
+            {
+                throw new Exception("DeviceHandle=" + DeviceHandle.ToString());
+            }
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 uint Length = 0;
@@ -508,6 +533,11 @@ namespace UniversalTunTapDriver
 
         public byte[] GetMAC()
         {
+            if (DeviceHandle == -1 || DeviceHandle == 0)
+            {
+                throw new Exception("DeviceHandle=" + DeviceHandle.ToString());
+            }
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 uint Length = 0;
@@ -536,6 +566,11 @@ namespace UniversalTunTapDriver
 
         public string GetVersion()
         {
+            if (DeviceHandle == -1 || DeviceHandle == 0)
+            {
+                throw new Exception("DeviceHandle=" + DeviceHandle.ToString());
+            }
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 uint Length = 0;
@@ -563,6 +598,11 @@ namespace UniversalTunTapDriver
 
         public int GetMTU()
         {
+            if (DeviceHandle == -1 || DeviceHandle == 0)
+            {
+                throw new Exception("DeviceHandle=" + DeviceHandle.ToString());
+            }
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 uint Length = 0;
